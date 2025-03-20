@@ -90,8 +90,10 @@ class CGFormer(BaseModule):
             img_enc_feats = self.image_encoder(img_inputs[0])
             warped_feats = self.flow(img_enc_feats_last, img_metas["flow"][0])
             sim = compute_cosine_similarity(warped_feats,img_enc_feats)
-            img_enc_feats = sim * warped_feats
-            img_enc_feats = img_enc_feats.unsqueeze(0)
+            # img_enc_feats = sim * warped_feats
+            flow_loss = 1 - sim
+            flow_loss = flow_loss.mean()
+            # img_enc_feats = img_enc_feats.unsqueeze(0)
         else:
             img_enc_feats = self.image_encoder(img_inputs[0])
             # img_inputs[0] = temporal_feature_aggregation(img_inputs[0],img_inputs[-1],img_metas["flow"])
@@ -137,7 +139,7 @@ class CGFormer(BaseModule):
             mlvl_dpt_dists=[depth.unsqueeze(1)]
         )
 
-        return x, depth
+        return x, depth,flow_loss
     
     def occ_encoder(self, x):
         if hasattr(self, 'occ_encoder_backbone'):
@@ -153,7 +155,7 @@ class CGFormer(BaseModule):
         img_metas = data_dict['img_metas']
         gt_occ = data_dict['gt_occ']
 
-        img_voxel_feats, depth = self.extract_img_feat(img_inputs, img_metas)
+        img_voxel_feats, depth,flow_loss = self.extract_img_feat(img_inputs, img_metas)
         voxel_feats_enc = self.occ_encoder(img_voxel_feats)
         
         if len(voxel_feats_enc) > 1:
@@ -170,7 +172,7 @@ class CGFormer(BaseModule):
         )
 
         losses = dict()
-        # losses['time_loss'] = loss_time
+        losses['flow_loss'] = flow_loss
         if self.depth_loss and depth is not None:
             losses['loss_depth'] = self.depth_net.get_depth_loss(img_inputs['gt_depths'], depth)
 
@@ -196,7 +198,7 @@ class CGFormer(BaseModule):
         img_metas = data_dict['img_metas']
         gt_occ = data_dict['gt_occ']
 
-        img_voxel_feats, depth = self.extract_img_feat(img_inputs, img_metas)
+        img_voxel_feats, depth, _ = self.extract_img_feat(img_inputs, img_metas)
         voxel_feats_enc = self.occ_encoder(img_voxel_feats)
 
         if len(voxel_feats_enc) > 1:

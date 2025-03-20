@@ -3,78 +3,6 @@ import torch.nn.functional as F
 from torch import nn
 from torchvision.ops import DeformConv2d
 
-
-# from mmdet3d_plugin.models.self_add.flow.flow_mask import compute_occlusion_mask
-#
-#
-def compute_cosine_similarity(feat1, feat2):
-    """计算余弦相似度"""
-    cos_sim = F.cosine_similarity(feat1, feat2, dim=1, eps=1e-8)
-    return cos_sim.unsqueeze(1)  # 添加通道维度
-#
-#
-# def warp_feature_with_flow(feature, flow):
-#     B, C, H, W = feature.shape
-#
-#     # 生成网格
-#     grid_x, grid_y = torch.meshgrid(torch.arange(0, W), torch.arange(0, H), indexing='xy')
-#     grid_x = grid_x.float().to(feature.device)
-#     grid_y = grid_y.float().to(feature.device)
-#
-#     # 将grid_x, grid_y扩展到批次维度
-#     grid_x = grid_x.unsqueeze(0).expand(B, -1, -1)  # 扩展为 (B, H, W)
-#     grid_y = grid_y.unsqueeze(0).expand(B, -1, -1)  # 扩展为 (B, H, W)
-#
-#     # 加上光流
-#     grid_x = grid_x + flow[:, :, :, 0]  # flow[:, :, :, 0]的尺寸是 (B, H, W)
-#     grid_y = grid_y + flow[:, :, :, 1]  # flow[:, :, :, 1]的尺寸是 (B, H, W)
-#
-#     # 归一化到 [-1, 1] 范围
-#     grid_x = 2.0 * grid_x / max(W - 1, 1) - 1.0
-#     grid_y = 2.0 * grid_y / max(H - 1, 1) - 1.0
-#     grid = torch.stack((grid_x, grid_y), dim=-1)  # (B, H, W, 2)
-#
-#     # 使用grid_sample进行光流扭曲
-#     warped_feature = F.grid_sample(feature, grid, mode='bilinear', align_corners=False)
-#     return warped_feature
-#
-# def FlowGuidedWarp(feature, feature_last, flow):
-#     """
-#     :param feature: 当前帧特征 (B, C, H, W)
-#     :param feature_last: 下一帧特征 (B, C, H, W)
-#     :param flow: 光流 (B, H, W, 2)
-#     :return: warp_feature, weight
-#     """
-#     B, C, H, W = feature.shape
-#
-#     # 1. 利用光流对特征进行扭曲
-#     warped_feature = warp_feature_with_flow(feature_last, flow[0])
-#
-#     # 2. 计算 warped_feature 和 feature_last 的余弦相似度
-#     similarity = compute_cosine_similarity(warped_feature, feature)
-#
-#     aggregated_feat = warped_feature * similarity
-#     return aggregated_feat,
-#
-#
-# def temporal_feature_aggregation(current_feat, feature_last, flow):
-#     """使用光流引导特征聚合"""
-#     devices = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-#     num = current_feat.dim()
-#     if num == 5:
-#         B, N, C, H, W = current_feat.shape
-#         current_feat = current_feat.view(B * N, C, H, W).to(devices)
-#         feature_last = feature_last.view(B * N, C, H, W).to(devices)
-#
-#     mask = compute_occlusion_mask(flow[0], flow[1])
-#
-#     aggregated_feat = FlowGuidedWarp(current_feat, feature_last, flow)
-#
-#     # aggregated_feat = warp_feature * weight + current_feat * (1 - weight)
-#     # if num == 5:
-#     #     aggregated_feat = aggregated_feat.unsqueeze(0)
-#
-#     return aggregated_feat
 class FeatureWarping(nn.Module):
     def __init__(self, in_channels):
         super(FeatureWarping, self).__init__()
@@ -87,11 +15,6 @@ class FeatureWarping(nn.Module):
         :param flow: [batch, 2, H_img, W_img]  # 原始图像尺度的光流
         :return: 变换后的 t1 特征
         """
-        # batch, C, H_feat, W_feat = feature_t0.shape
-        #
-        # # 调整光流到特征图尺度
-        # flow_feat = F.interpolate(flow, size=(H_feat, W_feat), mode="bilinear", align_corners=True)
-
         # 计算可变形卷积的偏移量 (offsets)
         offsets = self.offset_conv(flow)  # [batch, 18, H_feat, W_feat]
 
@@ -136,51 +59,6 @@ def resize_optical_flow(flow, target_size=(48, 160)):
                                  align_corners=False)
     return flow_resized.squeeze(0).permute(1, 2, 0)  # 返回[H', W', 2]
 
-
-# def warp_feature_with_flow(feature, flow, img_size=(48,160), align_corners=True):
-#     """
-#     使用光流对特征图进行变换
-#     :param feature: 形状 [batch_size, C, H_feat, W_feat]，第 0 帧的特征图
-#     :param flow:    形状 [batch_size, 2, H_img, W_img]，原始图像尺寸的光流
-#     :param img_size: 原始图像尺寸 (H_img, W_img)
-#     :param align_corners: 是否对齐插值
-#     :return: 变换后的特征图 [batch_size, C, H_feat, W_feat]
-#     """
-#     batch_size, C, H_feat, W_feat = feature.shape
-#     H_img, W_img = img_size  # 原始图像尺寸
-#
-#     # 计算特征图相对于图像的缩放比例
-#     scale_x = W_feat / W_img
-#     scale_y = H_feat / H_img
-#
-#     # 下采样光流，使其匹配特征图大小
-#     flow_feat = F.interpolate(flow, size=(H_feat, W_feat), mode="bilinear", align_corners=align_corners)
-#     flow_feat[:, 0, :, :] *= scale_x  # 缩放 x 方向
-#     flow_feat[:, 1, :, :] *= scale_y  # 缩放 y 方向
-#
-#     # 生成特征图级别的网格坐标
-#     grid_y, grid_x = torch.meshgrid(torch.arange(H_feat), torch.arange(W_feat), indexing="ij")
-#     grid_x = grid_x.float().to(feature.device)
-#     grid_y = grid_y.float().to(feature.device)
-#
-#     # 计算新的坐标
-#     new_grid_x = grid_x + flow_feat[:, 0, :, :]
-#     new_grid_y = grid_y + flow_feat[:, 1, :, :]
-#
-#     # 归一化到 [-1, 1]
-#     new_grid_x = 2.0 * new_grid_x / (W_feat - 1) - 1.0
-#     new_grid_y = 2.0 * new_grid_y / (H_feat - 1) - 1.0
-#
-#     # 组合网格，并添加 batch 维度
-#     new_grid = torch.stack((new_grid_x, new_grid_y), dim=-1)  # [batch_size, H_feat, W_feat, 2]
-#
-#     # 使用 `grid_sample` 进行双线性插值，得到 t1 时刻的特征图
-#     warped_feature = F.grid_sample(feature, new_grid, mode='bilinear', padding_mode='zeros', align_corners=align_corners)
-#
-#     return warped_feature
-
-
-
 class OpticalFlowAlignmentWithAttention(nn.Module):
     def __init__(self):
         super(OpticalFlowAlignmentWithAttention, self).__init__()
@@ -205,8 +83,7 @@ class OpticalFlowAlignmentWithAttention(nn.Module):
         flow_resized = flow_resized * flow_attention
 
         # 使用光流图将第0帧图像对齐到第1帧
-        # warped_image = warp_feature_with_flow(image_0,flow_resized)
-        # model = FeatureWarping(in_channels=640).cuda()
+
         warped_image = self.flow(image_0,flow_resized)
 
         # 获取通道注意力图
@@ -214,8 +91,7 @@ class OpticalFlowAlignmentWithAttention(nn.Module):
 
         # 将通道注意力应用到对齐后的图像
         warped_image = warped_image * image_attention
-        # sim = compute_cosine_similarity(warped_image,image_0)
-        # warped_image = warped_image * sim
+
 
         return warped_image
 

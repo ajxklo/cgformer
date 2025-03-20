@@ -98,11 +98,11 @@ data = dict(
 
 train_dataloader_config = dict(
     batch_size=1,
-    num_workers=8)
+    num_workers=4)
 
 test_dataloader_config = dict(
     batch_size=1,
-    num_workers=8)
+    num_workers=4)
 
 # model
 numC_Trans = 128
