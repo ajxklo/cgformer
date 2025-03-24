@@ -2,6 +2,13 @@
 <project version="4">
   <component name="PublishConfigData" autoUpload="Always" serverName="zhoujie@10.160.4.123:22 password (6)" remoteFilesAllowedToDisappearOnAutoupload="false">
     <serverData>
+      <paths name="a6000">
+        <serverdata>
+          <mappings>
+            <mapping local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
       <paths name="zhangzherui@10.3.242.149:22 password">
         <serverdata>
           <mappings>

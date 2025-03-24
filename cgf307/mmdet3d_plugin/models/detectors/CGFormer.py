@@ -3,6 +3,7 @@ from mmcv.runner import BaseModule
 from mmdet.models import DETECTORS
 from mmdet3d.models import builder
 
+from mmdet3d_plugin.models.self_add.flow.NeighborhoodCrossAttention import NeighborhoodCrossAttention
 from mmdet3d_plugin.models.self_add.flow.flow import  OpticalFlowAlignmentWithAttention
 from mmdet3d_plugin.models.self_add.vipocc.DepthRefinement import DepthRefinement
 from mmdet3d_plugin.models.self_add.vipocc.RID import RID
@@ -48,6 +49,7 @@ class CGFormer(BaseModule):
         self.time_loss = time_loss()
         self.depth_loss = True
         self.flow = OpticalFlowAlignmentWithAttention()
+        self.nca = NeighborhoodCrossAttention(kernel_size=3)
 #===================================================================================
 
 
@@ -88,11 +90,11 @@ class CGFormer(BaseModule):
         if len(img_inputs) == 9:
             img_enc_feats_last = self.image_encoder(img_inputs[-1]).detach()
             img_enc_feats = self.image_encoder(img_inputs[0])
-            warped_feats = self.flow(img_enc_feats_last, img_metas["flow"][0])
+            warped_feats,mask = self.flow(img_enc_feats_last, img_metas["flow"])
             sim = compute_cosine_similarity(warped_feats,img_enc_feats)
-            # img_enc_feats = sim * warped_feats
             flow_loss = 1 - sim
             flow_loss = flow_loss.mean()
+            img_enc_feats = self.nca(img_enc_feats,warped_feats,mask.unsqueeze(0)).unsqueeze(0)
             # img_enc_feats = img_enc_feats.unsqueeze(0)
         else:
             img_enc_feats = self.image_encoder(img_inputs[0])

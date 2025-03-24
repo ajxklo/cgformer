@@ -1,7 +1,11 @@
 import torch
 import torch.nn.functional as F
+from matplotlib import pyplot as plt
 from torch import nn
 from torchvision.ops import DeformConv2d
+
+from mmdet3d_plugin.models.self_add.flow.forward_backward_consistency_check import forward_backward_consistency_check
+
 
 class FeatureWarping(nn.Module):
     def __init__(self, in_channels):
@@ -72,7 +76,7 @@ class OpticalFlowAlignmentWithAttention(nn.Module):
             b,n,c,h,w=image_0.shape
             image_0 = image_0.view(b*n,c,h,w)
         # 调整光流图的尺寸
-        flow_resized = resize_optical_flow(flow, target_size=(image_0.shape[2], image_0.shape[3]))
+        flow_resized = resize_optical_flow(flow[0], target_size=(image_0.shape[2], image_0.shape[3]))
 
         flow_resized = flow_resized.permute(2,0,1).unsqueeze(0)
 
@@ -92,8 +96,31 @@ class OpticalFlowAlignmentWithAttention(nn.Module):
         # 将通道注意力应用到对齐后的图像
         warped_image = warped_image * image_attention
 
+        # flow_resized2 = resize_optical_flow(flow[1], target_size=(image_0.shape[2], image_0.shape[3]))
+        # flow_resized2 = flow_resized2.permute(2,0,1).unsqueeze(0)
+        # flow_attention2 = self.spatial_attention(flow_resized2)
+        # flow_resized2 = flow_resized2 * flow_attention2
 
-        return warped_image
+
+        mask_f,mask_b = forward_backward_consistency_check(flow[0],flow[1])
+        mask_f = F.interpolate(mask_f.unsqueeze(1),(48,160),mode='nearest').squeeze(1)
+        mask_b = F.interpolate(mask_b.unsqueeze(1),(48,160),mode='nearest').squeeze(1)
+
+        # fwd_mask = mask_f[0].cpu().numpy()
+        # bwd_mask = mask_b[0].cpu().numpy()
+        #
+        # fig, axes = plt.subplots(1, 2, figsize=(10, 5))
+        #
+        # axes[0].imshow(fwd_mask, cmap='gray')
+        # axes[0].set_title("Forward Occlusion")
+        # axes[0].axis('off')
+        #
+        # axes[1].imshow(bwd_mask, cmap='gray')
+        # axes[1].set_title("Backward Occlusion")
+        # axes[1].axis('off')
+        #
+        # plt.show()
+        return warped_image,mask_f
 
 
 
